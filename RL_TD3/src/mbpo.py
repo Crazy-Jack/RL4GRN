@@ -16,18 +16,8 @@ from src.td3 import TD3
 from src.pe_model import PE
 from src.fake_env import FakeEnv
 
-'''
-for t in timestep:
-    take action in environment according to policy and add result to D_env
+import Simulator.backwards_euler as sim
 
-    if t % E == 0:
-        train model til convergence
-        sample B * M transition from D_env and perform k = 1 step rollout from them, and add them into D_model
-
-    for g in G:
-        sample data points from the mixed batch
-        update policy using data sampled
-'''
 
 class MBPO:
     '''
@@ -48,6 +38,7 @@ class MBPO:
         self.eval_freq = train_kwargs["eval_freq"] #Model evaluation frequency
         self.save_model = train_kwargs["save_model"]
         self.expl_noise = train_kwargs["expl_noise"] #TD3 exploration noise
+        self.seed_coeff, self.seed_init = train_kwargs["seed_coeff"], train_kwargs["seed_init"]
 
         # MBPO parameters. Pseudocode refers to MBPO pseudocode in writeup.
         self.model_rollout_batch_size = train_kwargs["model_rollout_batch_size"]
@@ -77,7 +68,7 @@ class MBPO:
         # Number of steps in FakeEnv
         self.fake_env_steps = 0
 
-    def eval_policy(self, eval_episodes=10):
+    def eval_policy(self, env, eval_episodes=10):
         '''
             Runs policy for eval_episodes and returns average reward.
             A fixed seed is used for the eval environment.
@@ -86,9 +77,9 @@ class MBPO:
         env_name = self.env_name
         seed = self.seed
         policy = self.policy
+        seed_coeff, seed_init = self.seed_coeff, self.seed_init
 
-        eval_env = gym.make(env_name)
-        eval_env.seed(seed + 100)
+        eval_env = sim.make(env_name, seed_coeff, seed_init)
 
         avg_reward = 0.
         for _ in range(eval_episodes):
@@ -123,12 +114,12 @@ class MBPO:
             os.makedirs("./models")
 
         tf.random.set_seed(self.seed)
-        np.random.seed(self.seed)
+        seed_coeff, seed_init = self.seed_coeff, self.seed_init
 
-        env = gym.make(self.env_name)
-        state_dim = env.observation_space.shape[0]
-        action_dim = env.action_space.shape[0]
-        max_action = float(env.action_space.high[0])
+        env = sim.make(self.env_name, seed_coeff, seed_init)
+        state_dim = env.state_space 
+        action_dim = env.action_space
+        max_action = env.max_action
 
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -305,10 +296,9 @@ class MBPO:
             Main training loop for both TD3 and MBPO. See Figure 2 in writeup.
         '''
         self.init_models_and_buffer()
-        env = gym.make(self.env_name)
-        # Set seeds
-        env.seed(self.seed)
-
+        
+        # make environment
+        env = 
         # Evaluate untrained policy
         evaluations = [self.eval_policy()]
 
@@ -316,7 +306,7 @@ class MBPO:
         evaluate_episodes = [0]
 
         state, done = env.reset(), False
-        env.render()
+
         # You may want to set episode_reward appropriately
         episode_reward = 0
         episode_timesteps = 0
