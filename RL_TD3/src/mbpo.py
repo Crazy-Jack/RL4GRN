@@ -68,7 +68,7 @@ class MBPO:
         # Number of steps in FakeEnv
         self.fake_env_steps = 0
 
-    def eval_policy(self, env, eval_episodes=10):
+    def eval_policy(self, eval_episodes=10):
         '''
             Runs policy for eval_episodes and returns average reward.
             A fixed seed is used for the eval environment.
@@ -298,7 +298,8 @@ class MBPO:
         self.init_models_and_buffer()
         
         # make environment
-        env = 
+        seed_coeff, seed_init = self.seed_coeff, self.seed_init
+        env = sim.make(self.env_name, seed_coeff, seed_init)
         # Evaluate untrained policy
         evaluations = [self.eval_policy()]
 
@@ -307,7 +308,7 @@ class MBPO:
 
         state, done = env.reset(), False
 
-        # You may want to set episode_reward appropriately
+        # Set episode_reward appropriately
         episode_reward = 0
         episode_timesteps = 0
         episode_num = 0
@@ -317,7 +318,7 @@ class MBPO:
 
             # Select action randomly or according to policy
             if t < self.start_timesteps:
-                action = env.action_space.sample()
+                action = env.sample_action()
             else:
                 action = self.get_action_policy(state)
 
@@ -379,7 +380,7 @@ class MBPO:
                 evaluations.append(self.eval_policy())
                 evaluate_episodes.append(episode_num+1)
                 evaluate_timesteps.append(t+1)
-                if len(evaluations) > 5 and np.mean(evaluations[-5:]) > 990:
+                if len(evaluations) > 5:
                     self.plot_training_curves(evaluations, evaluate_episodes, evaluate_timesteps)
                 np.save(f"./results/{self.file_name}", evaluations)
                 if self.save_model:

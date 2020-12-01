@@ -90,6 +90,9 @@ class SimulatorEnv:
         self.state = self.init_state
         self.accumulate_step = 0
         return self.state
+
+    def sample_action(self):
+        """sample a random action from"""
     
 
 # store the parameters for specific environment
