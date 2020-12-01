@@ -61,7 +61,7 @@ class SimulatorEnv:
             info = "reach the end of episode. ".format(self.accumulate_step)
         else:
             done = False
-            info = "keep trying, step {} / {}".format(self.accumulate_step, self.time_limit)
+            info = "keep trying, error {}, step {} / {}".format(distance_to_target, self.accumulate_step, self.time_limit)
         
         # calculate reward
         reward = - distance_to_target * self.lambda_distance_reward - 1 
@@ -93,6 +93,8 @@ class SimulatorEnv:
 
     def sample_action(self):
         """sample a random action from"""
+        action = np.random.uniform(-self.max_action, self.max_action, self.action_space)
+        return action
     
 
 # store the parameters for specific environment

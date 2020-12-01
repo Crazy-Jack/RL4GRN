@@ -327,12 +327,14 @@ class MBPO:
             if not self.enable_MBPO:
                 # Perform action
                 next_state, reward, done, info = env.step(action) 
-
+                print("Infor for step {}: {}".format(t, info))
                 episode_reward += reward
                 # Store data in replay buffer
                 self.replay_buffer_Env.add(state, action, next_state, reward, done)
                 state = next_state
                 
+                # # distance to target
+                distance_to_target = ((next_state - env.target_state) ** 2).sum()
                 # Train agent after collecting sufficient data
                 if t > self.start_timesteps:
                     state_batch, action_batch, next_state_batch, reward_batch, not_done_batch = self.prepare_mixed_batch()
@@ -367,8 +369,9 @@ class MBPO:
                 # raise NotImplementedError
             
             if done:
+                
                 # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
-                print(f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
+                print(f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f} DisToTarget: {distance_to_target:.5f}")
                 # Reset environment
                 state, done = env.reset(), False
                 episode_reward = 0
