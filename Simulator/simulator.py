@@ -1,4 +1,7 @@
+import numpy as np
+import time
 
+from backwards_euler import backwards_euler, make_symmetric_random
 
 
 # ==================================
@@ -80,7 +83,7 @@ class SimulatorEnv:
         # update the state
         self.state = next_state
         self.accumulate_step += 1
-        return next_state, reward, done, info, distance_to_target
+        return next_state, reward, done, info
     
     def reset(self):
         """reset the env"""
@@ -94,14 +97,14 @@ def make(env_name, seed_network, seed_init):
     """Automatically make environment"""
     if env_name == 'random_generate_example':
         NUM_GENES = 100
-        time_limit = 20
+        time_limit = 200
         euler_limit = 16000
         action_percent = 0.3
         delta = 1e-2
         eps_euler = 1e-4
         eps_target = 1e-2
         lambda_distance_reward = 0.1 # reward = - distance_to_target * lambda_distance_reward - 1
-
+        max_action = 3
         # init the network structure and the actionable genes
         np.random.seed(seed_network)
         coefficient = make_symmetric_random(NUM_GENES) # random
@@ -117,7 +120,7 @@ def make(env_name, seed_network, seed_init):
         print(action_index.shape)
         # define env
         env = SimulatorEnv(coefficient, init_state, target_state, \
-                    original_perturb, action_index, time_limit, euler_limit, \
+                    original_perturb, action_index, max_action, time_limit, euler_limit, \
                     delta, eps_euler, eps_target, lambda_distance_reward)
         return env
 
@@ -152,10 +155,11 @@ def test_simulator():
     episode = 0
     for i in range(train_steps):
         # generate random action, replace this with policy network in reinforcement learning
-        action = np.random.rand(env.action_space, 1)
+        action = np.random.rand(env.action_space, 1) * env.max_action
         # put action into environment for evulation
         start_time = time.time()
-        next_state, reward, done, info, distance_to_target = env.step(action) # env will update its current state after taking every step
+        next_state, reward, done, info = env.step(action) # env will update its current state after taking every step
+        distance_to_target = (next_state - env.target_state) ** 2
         end_time = time.time()
         time_delta_step = end_time - start_time
         print("time: {}; reward: {}; done {}; distance_to_target {}".format(time_delta_step, reward, done, distance_to_target))
@@ -165,3 +169,7 @@ def test_simulator():
             print("Episode {} End. ----------\n".format(episode))
             env.reset()
             episode += 1
+
+
+if __name__ == '__main__':
+    test_simulator()
