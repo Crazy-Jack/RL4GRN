@@ -14,8 +14,15 @@ def make_symmetric_random(NUM_GENES):
     return sym
 
 
-def backwards_euler(x_n, perturbation, CUTOFF, ODE_COEFFICIENTS, DELTA, EPSILON, get_steps=False):
+def backwards_euler(x_n, perturbation, CUTOFF, ODE_COEFFICIENTS, DELTA, EPSILON, get_steps=False, convert_shape=False):
     # in the event of oscillation, a cutoff will implicitly choose a state
+    if convert_shape:
+        # if true, convert x_n and perturbation to (-1, 1)
+        assert len(x_n.shape) == 1
+        assert len(perturbation) == 1
+        x_n = x_n.reshape(x_n.shape[0], 1)
+        perturbation = perturbation.reshape(perturbation.shape[0], 1)
+    
     x_n_1 = None
     NUM_GENES = x_n.shape[0]
     for step in count(1):

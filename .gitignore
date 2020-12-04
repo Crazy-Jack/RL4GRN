@@ -392,3 +392,8 @@ dmypy.json
 .prof
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,python,pycharm+all
+
+
+#### costomized
+results/
+models/

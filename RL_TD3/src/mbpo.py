@@ -16,7 +16,7 @@ from src.td3 import TD3
 from src.pe_model import PE
 from src.fake_env import FakeEnv
 
-import Simulator.backwards_euler as sim
+import Simulator.SimulatorEnv as sim
 
 
 class MBPO:
@@ -30,6 +30,7 @@ class MBPO:
         self.enable_MBPO = train_kwargs["enable_MBPO"]
         self.policy_name = train_kwargs["policy"]
         self.env_name = train_kwargs["env_name"]
+        self.experiment_name = train_kwargs["experiment_name"]
         self.seed = train_kwargs["seed"] #random-seed
         self.load_model = train_kwargs["load_model"]
         self.max_timesteps = train_kwargs["max_timesteps"] #maximum real-env timestemps
@@ -82,19 +83,26 @@ class MBPO:
         eval_env = sim.make(env_name, seed_coeff, seed_init)
 
         avg_reward = 0.
+        avg_distance = 0.
         for _ in range(eval_episodes):
             state, done = eval_env.reset(), False
+            print("init state", state.shape)
             while not done:
                 action = policy.select_action(np.array(state))
-                state, reward, done, _ = eval_env.step(action)
+                # print("action shape", action.shape)
+                state, reward, done, info = eval_env.step(action)
+                distance_to_target = ((state - eval_env.target_state) ** 2).sum()
+                print("Eval info: {}".format(info))
                 avg_reward += reward
+                avg_distance += distance_to_target
 
         avg_reward /= eval_episodes
+        avg_distance /= eval_episodes
 
         print("---------------------------------------")
-        print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")
+        print(f"Evaluation over {eval_episodes} episodes: Reward {avg_reward:.3f}; Error {avg_distance:.4f}")
         print("---------------------------------------")
-        return avg_reward
+        return avg_reward, avg_distance
 
     def init_models_and_buffer(self):
         '''
@@ -102,7 +110,7 @@ class MBPO:
             The PE dynamics model and the replay_buffer_Model will not be used if MBPO is disabled.
             Do not modify.
         '''
-        self.file_name = f"{self.policy_name}_{self.env_name}_{self.seed}"
+        self.file_name = f"{self.policy_name}_{self.env_name}_{self.experiment_name}_{self.seed}"
         print("---------------------------------------")
         print(f"Policy: {self.policy_name}, Env: {self.env_name}, Seed: {self.seed}")
         print("---------------------------------------")
@@ -275,15 +283,17 @@ class MBPO:
             Plotting script. You should include these plots in the writeup.
             Do not modify.
         '''
+        evaluations_reward = [i[0] for i in evaluations]
+        evaluations_error = [i[1] for i in evaluations]
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-        ax1.plot(evaluate_episodes, evaluations)
-        ax1.set_xlabel("Training Episodes")
+        ax1.plot(evaluate_timesteps, evaluations_reward)
+        ax1.set_xlabel("Training Timesteps")
         ax1.set_ylabel("Evaluation Reward")
-        ax1.set_title("Reward vs Training Episodes")
-        ax2.plot(evaluate_timesteps, evaluations)
+        ax1.set_title("Reward vs Training Timesteps")
+        ax2.plot(evaluate_timesteps, evaluations_error)
         ax2.set_xlabel("Training Timesteps")
-        ax2.set_ylabel("Evaluation Reward")
-        ax2.set_title("Reward vs Training Timesteps")
+        ax2.set_ylabel("Evaluation Error")
+        ax2.set_title("Error vs Training Timesteps")
         if self.enable_MBPO:
             algo_str = "MBPO"
         else:
@@ -320,6 +330,8 @@ class MBPO:
             if t < self.start_timesteps:
                 action = env.sample_action()
             else:
+                if t == self.start_timesteps:
+                    print("Start get action from policy network")
                 action = self.get_action_policy(state)
 
                 # Perform model rollout and model training at appropriate timesteps 
@@ -330,6 +342,7 @@ class MBPO:
                 print("Infor for step {}: {}".format(t, info))
                 episode_reward += reward
                 # Store data in replay buffer
+                # print("action", type(action))
                 self.replay_buffer_Env.add(state, action, next_state, reward, done)
                 state = next_state
                 

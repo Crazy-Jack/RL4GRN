@@ -17,7 +17,9 @@ class Actor(keras.Model):
 
         self.l1 = keras.layers.Dense(256, activation="relu")
         self.l2 = keras.layers.Dense(256, activation="relu")
-        self.l3 = keras.layers.Dense(action_dim)
+        self.l3 = keras.layers.Dense(256, activation="relu")
+        self.l4 = keras.layers.Dense(256, activation="relu")
+        self.l5 = keras.layers.Dense(action_dim)
         self.max_action = max_action
 
 
@@ -28,7 +30,10 @@ class Actor(keras.Model):
         '''
         a = self.l1(state)
         a = self.l2(a)
-        return self.max_action * keras.activations.tanh(self.l3(a))
+        a = self.l3(a)
+        a = self.l4(a)
+        # a = self.l5(a)
+        return self.max_action * keras.activations.tanh(self.l5(a))
 
 
 class Critic(keras.Model):
@@ -42,12 +47,16 @@ class Critic(keras.Model):
         # Q1 architecture
         self.l1 = keras.layers.Dense(256, activation="relu")
         self.l2 = keras.layers.Dense(256, activation="relu")
-        self.l3 = keras.layers.Dense(1)
+        self.l3 = keras.layers.Dense(256, activation="relu")
+        self.l4 = keras.layers.Dense(256, activation="relu")
+        self.l5 = keras.layers.Dense(1)
 
         # Q2 architecture
-        self.l4 = keras.layers.Dense(256, activation="relu")
-        self.l5 = keras.layers.Dense(256, activation="relu")
-        self.l6 = keras.layers.Dense(1)
+        self.l6 = keras.layers.Dense(256, activation="relu")
+        self.l7 = keras.layers.Dense(256, activation="relu")
+        self.l8 = keras.layers.Dense(256, activation="relu")
+        self.l9 = keras.layers.Dense(256, activation="relu")
+        self.l10 = keras.layers.Dense(1)
 
 
     def call(self, state, action):
@@ -59,10 +68,14 @@ class Critic(keras.Model):
         q1 = self.l1(sa)
         q1 = self.l2(q1)
         q1 = self.l3(q1)
+        q1 = self.l4(q1)
+        q1 = self.l5(q1)
 
-        q2 = self.l4(sa)
-        q2 = self.l5(q2)
-        q2 = self.l6(q2)
+        q2 = self.l6(sa)
+        q2 = self.l7(q2)
+        q2 = self.l8(q2)
+        q2 = self.l9(q2)
+        q2 = self.l10(q2)
         return q1, q2 # (bz, 1), (bz, 1)
 
 
@@ -75,6 +88,9 @@ class Critic(keras.Model):
         q1 = self.l1(sa)
         q1 = self.l2(q1)
         q1 = self.l3(q1)
+        q1 = self.l4(q1)
+        q1 = self.l5(q1)
+
         return q1
 
 

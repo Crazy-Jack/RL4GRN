@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 
-from integrators import BackwardsEuler, make_symmetric_random
+from .integrators import BackwardsEuler, make_symmetric_random
 
 
 # ==================================
@@ -78,11 +78,12 @@ class SimulatorEnv:
     def step(self, action):
         """take an action (perturb), output (next_state, reward, done, info)
         param: 
-            - action: # [self.action_space, ]
+            - action: # [self.action_space, ] should be a numpy vector
         """
         # construct the resulted perturb
         assert len(action) == self.action_space
         perturb = self.original_perturb
+        # print("perturb", perturb[self.action_index].shape)
         perturb[self.action_index] = action
         # use backward euler for integrate
         next_state = self.integrator.get_next(self.state, perturb)
@@ -112,14 +113,14 @@ def make(env_name, seed_network, seed_init):
     if env_name == 'random_generate':
         # tunable parameter
         num_genes = 100
-        time_limit = 20
+        time_limit = 200
         euler_limit = 16000
         action_percent = 0.3
         delta = 1e-2
         eps_euler = 1e-4
         eps_target = 1e-2
         lambda_distance_reward = 0.1  # reward = - distance_to_target * lambda_distance_reward - 1
-        max_action = 3
+        max_action = 10
         # init the network structure and the actionable genes
         np.random.seed(seed_network)
         coefficient = make_symmetric_random(num_genes)  # random
@@ -128,9 +129,38 @@ def make(env_name, seed_network, seed_init):
 
         # init the initial state, the target state
         np.random.seed(seed_init)
-        init_state = np.random.rand(num_genes, 1)  # random
-        target_state = np.random.rand(num_genes, 1)  # random
-        original_perturb = np.random.rand(num_genes, 1)  # random
+        init_state = np.random.rand(num_genes,)  # random
+        target_state = np.random.rand(num_genes, )  # random
+        original_perturb = np.random.rand(num_genes, )  # random
+
+        print(action_index.shape)
+        # define env
+        env = SimulatorEnv(coefficient, init_state, target_state,
+                           original_perturb, action_index, max_action, time_limit, euler_limit,
+                           delta, eps_euler, eps_target, lambda_distance_reward)
+        return env
+    elif env_name == 'random_generate_td3_simple':
+        # tunable parameter
+        num_genes = 10
+        time_limit = 100
+        euler_limit = 16000
+        action_percent = 0.5
+        delta = 1e-1
+        eps_euler = 1e-4
+        eps_target = 1e-2
+        lambda_distance_reward = 0.5  # reward = - distance_to_target * lambda_distance_reward - 1
+        max_action = 10
+        # init the network structure and the actionable genes
+        np.random.seed(seed_network)
+        coefficient = make_symmetric_random(num_genes)  # random
+        action_space = int(num_genes * action_percent)
+        action_index = np.random.randint(num_genes, size=(action_space,))  # random
+
+        # init the initial state, the target state
+        np.random.seed(seed_init)
+        init_state = np.random.rand(num_genes,)  # random
+        target_state = np.random.rand(num_genes, )  # random
+        original_perturb = np.random.rand(num_genes, )  # random
 
         print(action_index.shape)
         # define env
