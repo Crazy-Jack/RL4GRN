@@ -94,8 +94,8 @@ class CoefficientGraph:
             self._relabel_nodes(new_concentrations)
 
         pos = nx.spring_layout(self._G)
-        nx.draw_networkx_nodes(self._G, pos, node_size=900, node_color="grey", node_shape="s")
-        nx.draw_networkx_labels(self._G, pos, font_size=8, font_family="sans-serif", font_color="white")
+        nx.draw_networkx_nodes(self._G, pos, node_size=50, node_color="grey", node_shape="s")
+        nx.draw_networkx_labels(self._G, pos, font_size=5, font_family="sans-serif", font_color="white")
         nx.draw_networkx_edges(self._G, pos, edge_color=self._colors, width=self._weights,
                                arrowstyle="->",
                                arrowsize=20)
@@ -105,10 +105,10 @@ class CoefficientGraph:
 
 
 if __name__ == "__main__":
-    num_genes = 50
+    num_genes = 10
     coeff = np.random.normal(0, 1, (num_genes, num_genes))
     conc = np.random.random((num_genes, 1))
-    g = CoefficientGraph(coeff, conc, edge_threshold=0.85)
+    g = CoefficientGraph(coeff, conc, edge_threshold=0.0)
     g.plot()
     conc = np.random.random((num_genes, 1))
     g.plot(conc)

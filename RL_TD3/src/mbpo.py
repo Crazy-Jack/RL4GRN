@@ -40,7 +40,8 @@ class MBPO:
         self.save_model = train_kwargs["save_model"]
         self.expl_noise = train_kwargs["expl_noise"] #TD3 exploration noise
         self.seed_coeff, self.seed_init = train_kwargs["seed_coeff"], train_kwargs["seed_init"]
-
+        self.HER = train_kwargs["HER"] # whether to perform Hindsight Experience Replay (HER)
+        self.HER_k = train_kwargs["HER_k"] # number of future goals to sample
         # MBPO parameters. Pseudocode refers to MBPO pseudocode in writeup.
         self.model_rollout_batch_size = train_kwargs["model_rollout_batch_size"]
         self.num_rollouts_per_step = train_kwargs["num_rollouts_per_step"] #M in pseudocode
@@ -48,7 +49,7 @@ class MBPO:
         self.model_update_freq = train_kwargs["model_update_freq"] #E in pseudocode
         self.num_gradient_updates = train_kwargs["num_gradient_updates"] #G in pseudocode
         self.percentage_real_transition = train_kwargs["percentage_real_transition"]
-
+        self.random_init_everytime = train_kwargs["random_init_everytime"] 
         # TD3 agent parameters
         self.discount = TD3_kwargs["discount"] #discount factor
         self.tau = TD3_kwargs["tau"] #target network update rate
@@ -69,7 +70,7 @@ class MBPO:
         # Number of steps in FakeEnv
         self.fake_env_steps = 0
 
-    def eval_policy(self, eval_episodes=10):
+    def eval_policy(self, eval_episodes=50):
         '''
             Runs policy for eval_episodes and returns average reward.
             A fixed seed is used for the eval environment.
@@ -80,29 +81,44 @@ class MBPO:
         policy = self.policy
         seed_coeff, seed_init = self.seed_coeff, self.seed_init
 
-        eval_env = sim.make(env_name, seed_coeff, seed_init)
+        eval_env = sim.make(env_name, seed_coeff, seed_init, goal_condition=self.HER, random_init_target=self.random_init_everytime)
+        # eval_env = sim.make(env_name, seed_coeff, seed_init, goal_condition=self.HER)
+        orginal_gap = 0.
 
         avg_reward = 0.
         avg_distance = 0.
+        steps = 0
         for _ in range(eval_episodes):
             state, done = eval_env.reset(), False
-            print("init state", state.shape)
+            gap = np.abs(state[:eval_env.state_space] - state[eval_env.state_space:]).sum()
+            orginal_gap += gap
+            print("init gap", gap)
             while not done:
                 action = policy.select_action(np.array(state))
                 # print("action shape", action.shape)
                 state, reward, done, info = eval_env.step(action)
-                distance_to_target = ((state - eval_env.target_state) ** 2).sum()
-                print("Eval info: {}".format(info))
+                
+                print("Eval info: {}; Action max {}; min {}; mean {}".format(info, action.max(), action.min(), action.mean()))
                 avg_reward += reward
-                avg_distance += distance_to_target
+                
+                steps += 1
 
+            if self.HER:
+                distance_to_target = np.abs(state[:eval_env.state_space] - eval_env.target_state).sum()
+            else:
+                distance_to_target = np.abs(state - eval_env.target_state).sum()
+            
+            avg_distance += distance_to_target
+            print("===============================================")
+            print("===============================================")
         avg_reward /= eval_episodes
         avg_distance /= eval_episodes
+        orginal_gap /= eval_episodes
 
         print("---------------------------------------")
         print(f"Evaluation over {eval_episodes} episodes: Reward {avg_reward:.3f}; Error {avg_distance:.4f}")
         print("---------------------------------------")
-        return avg_reward, avg_distance
+        return avg_reward, avg_distance, orginal_gap
 
     def init_models_and_buffer(self):
         '''
@@ -115,21 +131,23 @@ class MBPO:
         print(f"Policy: {self.policy_name}, Env: {self.env_name}, Seed: {self.seed}")
         print("---------------------------------------")
 
-        if not os.path.exists("./results"):
-            os.makedirs("./results")
+        if not os.path.exists("./results/{}".format(self.experiment_name)):
+            os.makedirs("./results/{}".format(self.experiment_name))
 
-        if self.save_model and not os.path.exists("./models"):
-            os.makedirs("./models")
+        if self.save_model and not os.path.exists("./models/{}".format(self.experiment_name)):
+            os.makedirs("./models/{}".format(self.experiment_name))
 
         tf.random.set_seed(self.seed)
         seed_coeff, seed_init = self.seed_coeff, self.seed_init
 
         env = sim.make(self.env_name, seed_coeff, seed_init)
         state_dim = env.state_space 
+        if self.HER: 
+            state_dim += env.goal_space
         action_dim = env.action_space
         max_action = env.max_action
 
-        self.state_dim = state_dim
+        self.state_dim = state_dim 
         self.action_dim = action_dim
         self.max_action = max_action
 
@@ -160,7 +178,8 @@ class MBPO:
 
         if self.load_model != "":
             policy_file = self.file_name if self.load_model == "default" else self.load_model
-            self.policy.load(f"./models/{policy_file}")
+            self.policy.load(f"./models/{self.experiment_name}/{policy_file}")
+            print(f"Model Loaded! From ./models/{self.experiment_name}/{policy_file}")
 
         self.replay_buffer_Env = ReplayBuffer(state_dim, action_dim)
         self.replay_buffer_Model = ReplayBuffer(state_dim, action_dim)
@@ -285,12 +304,15 @@ class MBPO:
         '''
         evaluations_reward = [i[0] for i in evaluations]
         evaluations_error = [i[1] for i in evaluations]
+        evaluations_origin = [i[2] for i in evaluations]
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
         ax1.plot(evaluate_timesteps, evaluations_reward)
         ax1.set_xlabel("Training Timesteps")
         ax1.set_ylabel("Evaluation Reward")
         ax1.set_title("Reward vs Training Timesteps")
         ax2.plot(evaluate_timesteps, evaluations_error)
+        ax2.plot(evaluate_timesteps, evaluations_origin)
+        ax2.legend(["Final Error", "Original Error"])
         ax2.set_xlabel("Training Timesteps")
         ax2.set_ylabel("Evaluation Error")
         ax2.set_title("Error vs Training Timesteps")
@@ -299,7 +321,7 @@ class MBPO:
         else:
             algo_str = "TD3"
         fig.suptitle("Training Curves for " + algo_str, fontsize=20)
-        fig.savefig("./results/training_curve_{}.png".format(algo_str))
+        fig.savefig("./results/training_curve_{}_{}.png".format(algo_str, self.experiment_name))
 
     def train(self):
         '''
@@ -309,12 +331,20 @@ class MBPO:
         
         # make environment
         seed_coeff, seed_init = self.seed_coeff, self.seed_init
-        env = sim.make(self.env_name, seed_coeff, seed_init)
+        env = sim.make(self.env_name, seed_coeff, seed_init, goal_condition=self.HER, random_init_target=self.random_init_everytime)
         # Evaluate untrained policy
-        evaluations = [self.eval_policy()]
+        if self.load_model != "":
+            evaluations = list(np.load(f"results/{self.experiment_name}/{self.file_name}.npy", allow_pickle=True))
+            evaluate_timesteps = [i * self.eval_freq for i in range(len(evaluations))]
+            evaluate_episodes = [0]
+            start_t = evaluate_timesteps[-1]
 
-        evaluate_timesteps = [0]
-        evaluate_episodes = [0]
+        else:
+            evaluations = [self.eval_policy()]
+
+            evaluate_timesteps = [0]
+            evaluate_episodes = [0]
+            start_t = 0
 
         state, done = env.reset(), False
 
@@ -323,7 +353,12 @@ class MBPO:
         episode_timesteps = 0
         episode_num = 0
 
-        for t in range(int(self.max_timesteps)):
+        # perpare for goal conditional RL if enabled
+        if self.HER:
+            action_traj = []
+            state_traj = [state[:env.state_space]]
+
+        for t in range(start_t, int(self.max_timesteps)):
             episode_timesteps += 1
 
             # Select action randomly or according to policy
@@ -333,21 +368,25 @@ class MBPO:
                 if t == self.start_timesteps:
                     print("Start get action from policy network")
                 action = self.get_action_policy(state)
+            
+            if self.HER:
+                # record action trajactory
+                action_traj.append(action)
 
-                # Perform model rollout and model training at appropriate timesteps 
-
+            # Perform model rollout and model training at appropriate timesteps 
             if not self.enable_MBPO:
                 # Perform action
-                next_state, reward, done, info = env.step(action) 
-                print("Infor for step {}: {}".format(t, info))
+                next_state, reward, done, info = env.step(action) # state is conditioned on target state if in HER mode
+                if self.HER:
+                    state_traj.append(next_state[:env.state_space]) # save the state trajactory
+                print("Infor for step {}: {}; action: {}".format(t, info, np.abs(action).max()))
                 episode_reward += reward
                 # Store data in replay buffer
                 # print("action", type(action))
                 self.replay_buffer_Env.add(state, action, next_state, reward, done)
+
                 state = next_state
                 
-                # # distance to target
-                distance_to_target = ((next_state - env.target_state) ** 2).sum()
                 # Train agent after collecting sufficient data
                 if t > self.start_timesteps:
                     state_batch, action_batch, next_state_batch, reward_batch, not_done_batch = self.prepare_mixed_batch()
@@ -382,9 +421,29 @@ class MBPO:
                 # raise NotImplementedError
             
             if done:
-                
+                # perform HER
+                if self.HER:
+                    # using future state as goal
+                    # state_traj, action_traj
+                    for time_step in range(len(action_traj) - 1):
+                        action_t = action_traj[time_step]
+                        state_t = state_traj[time_step]
+                        # print(f"time_step: {time_step}; len(action_tra) {len(action_traj)}; len(state_traj) {len(state_traj)}")
+                        next_state_t = state_traj[time_step+1]
+                        # sample goals:
+                        goals_indx = np.random.randint(time_step+1, len(state_traj), size=(self.HER_k,))
+                        for j in goals_indx:
+                            goal = state_traj[j]
+                            reward_, done_, info_, distance_to_target_ = env.get_reward(next_state_t, time_step+1, goal) # t=time_step+1 to calculate done
+                            # condition on goal
+                            print("Reward -------------------------------- {}".format(reward_))
+                            state_goal = np.concatenate((state_t, goal))
+                            next_state_goal = np.concatenate((next_state_t, goal))
+                            self.replay_buffer_Env.add(state_goal, action_t, next_state_goal, reward_, done_)
+                    # clear the traj
+                    state_traj, action_traj = [], []
                 # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
-                print(f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f} DisToTarget: {distance_to_target:.5f}")
+                print(f"Total T: {t+1} Episode Num: {episode_num+1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
                 # Reset environment
                 state, done = env.reset(), False
                 episode_reward = 0
@@ -393,13 +452,14 @@ class MBPO:
 
             # Evaluate episode
             if (t + 1) % self.eval_freq == 0:
-                evaluations.append(self.eval_policy())
+                eval_results = self.eval_policy()
+                evaluations.append(eval_results)
                 evaluate_episodes.append(episode_num+1)
                 evaluate_timesteps.append(t+1)
-                if len(evaluations) > 5:
+                if len(evaluations) > 1:
                     self.plot_training_curves(evaluations, evaluate_episodes, evaluate_timesteps)
-                np.save(f"./results/{self.file_name}", evaluations)
+                np.save(f"./results/{self.experiment_name}/{self.file_name}", evaluations)
                 if self.save_model:
-                    self.policy.save(f"./models/{self.file_name}")
+                    self.policy.save(f"./models/{self.experiment_name}/{self.file_name}")
            
             

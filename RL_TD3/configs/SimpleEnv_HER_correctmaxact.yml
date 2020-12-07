@@ -1,8 +1,8 @@
 train_kwargs:
   enable_MBPO: false
   policy: TD3 
-  env_name: 'random_generate_td3_simple'
-  experiment_name: 'SimpleEnv_noHER'
+  env_name: 'random_generate_td3_simple_correctmaxact'
+  experiment_name: 'SimpleEnv_HER_correctmaxact'
   seed: 0
   load_model: ""
   max_timesteps: 1000000
@@ -19,13 +19,15 @@ train_kwargs:
   percentage_real_transition: 0.2 
   seed_coeff: 0 
   seed_init: 2
+  goal_condition: True
   random: True
-  HER: False
+  HER: True
   HER_k: 4
+  random_init_everytime: False
 TD3_kwargs:
-  discount: 0.95
+  discount: 0.99
   tau: 0.01
-  policy_noise: 0.1
+  policy_noise: 0.2
   noise_clip: 0.5
   policy_freq: 2
 model_kwargs:

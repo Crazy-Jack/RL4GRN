@@ -52,7 +52,7 @@ class BackwardsEuler(Integrator):
                 x_n = x_n_1
 
         self._steps = step
-        return x_n_1
+        return np.exp(x_n_1) / np.exp(x_n_1).sum()
 
     def _performance_test(self):
         x_n = np.random.rand(self.n, 1)

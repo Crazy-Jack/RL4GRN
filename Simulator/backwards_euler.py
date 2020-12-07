@@ -44,7 +44,7 @@ def backwards_euler(x_n, perturbation, CUTOFF, ODE_COEFFICIENTS, DELTA, EPSILON,
     if get_steps:
         return step
 
-    return x_n_1
+    return np.exp(x_n_1) / np.exp(x_n_1).sum()
 
 
 def performance(NUM_GENES, CUTOFF, DELTA, EPSILON):
